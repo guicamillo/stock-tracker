@@ -1,6 +1,9 @@
 /** @jsx jsx */
 
 import React from "react";
+//@ts-ignore
+import Trend from "react-trend";
+
 import { css, jsx } from "@emotion/core";
 
 interface Props {
@@ -9,28 +12,25 @@ interface Props {
 }
 
 interface State {
-  open: number;
-  close: number;
-  low: number;
-  high: number;
+  open?: number;
+  close?: number;
+  histogram?: number[];
   status?: "+" | "-";
 }
 
-const API_KEY = "demo";
-const getEndpointURL = (symbol: string) =>
-  `https://cors-anywhere.herokuapp.com/https://query1.finance.yahoo.com/v7/finance/chart/${symbol}?&interval=5m`;
+const getEndpointURL = (symbol: string) => {
+  const proxy =
+    process.env.NODE_ENV === "production"
+      ? "https://cors-anywhere.herokuapp.com"
+      : "http://127.0.0.1:8080";
+  return `${proxy}/https://query1.finance.yahoo.com/v7/finance/chart/${symbol}?&interval=5m`;
+};
 
 class Stock extends React.Component<Props, State> {
-  static state: State = {
-    open: 0,
-    close: 0,
-    low: 0,
-    high: 0
-  };
+  static state: State = {};
 
   async fetchPrices(symbol: string) {
     let stockPrices: any;
-
     await fetch(getEndpointURL(symbol))
       .then(res => res.json())
       .then(data => (stockPrices = data));
@@ -39,9 +39,8 @@ class Stock extends React.Component<Props, State> {
     this.setState({
       open: data.open[0].toFixed(2),
       close: data.close[0].toFixed(2),
-      low: data.low[0].toFixed(2),
-      high: data.high[0].toFixed(2),
-      status: data.open[0] < data.close[0] ? "+" : "-"
+      status: data.open[0] < data.close[0] ? "+" : "-",
+      histogram: [...data.open]
     });
   }
 
@@ -56,21 +55,43 @@ class Stock extends React.Component<Props, State> {
       <div
         css={[
           CSS.wrapper,
-          state && state.status === "+" ? CSS.winning : CSS.losing
+          state && (state.status === "+" ? CSS.winning : CSS.losing)
         ]}
       >
-        <div css={CSS.symbol}>{this.props.symbol}</div>
-        <div css={CSS.name}>{this.props.name}</div>
-        <div css={CSS.status}>
-          {state && (state.status === "+" ? "📈" : "📉")}
+        <div css={CSS.flexbox}>
+          <div>
+            <div css={CSS.symbol}>{this.props.symbol}</div>
+            <div css={CSS.name}>{this.props.name}</div>
+          </div>
+          {state && (
+            <div css={CSS.graph}>
+              <Trend
+                smooth
+                autoDraw
+                autoDrawDuration={1500}
+                autoDrawEasing="ease-out"
+                data={state.histogram}
+                gradient={["#222"]}
+                radius={10}
+                strokeWidth={5}
+                strokeLinecap={"butt"}
+              />
+            </div>
+          )}
+          <div css={CSS.status}>
+            {state && (state.status === "+" ? "📈" : "📉")}
+          </div>
         </div>
         {state && (
           <>
             <div css={CSS.grid}>
-              <span>open: {state.open}</span>
-              <span>close: {state.close}</span>
-              <span>🔻 {state.low}</span>
-              <span>🔺 {state.high}</span>
+              <span>
+                <strong>open:</strong> {state.open}
+              </span>
+              <span>
+                <strong>close:</strong>
+                {state.close}
+              </span>
             </div>
           </>
         )}
@@ -88,12 +109,23 @@ const CSS = {
     background: "rgba(150, 0, 0, 0.15)"
   }),
 
+  flexbox: css({
+    display: "flex"
+  }),
+
+  graph: css({
+    flexGrow: 1,
+    height: 36,
+    "& svg": {
+      height: "90%"
+    }
+  }),
+
   wrapper: css({
     margin: 10,
     padding: 10,
-    border: "1px solid #EFEFEF",
-    borderRadius: "2px",
-    position: "relative"
+    borderRadius: "10px",
+    boxShadow: "3px 3px 3px rgba(0, 0, 0, 0.1)"
   }),
 
   symbol: css({
@@ -106,18 +138,16 @@ const CSS = {
 
   grid: css({
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gridTemplateRows: "1fr 1fr",
-    justifyItems: "center",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gridTemplateRows: "1fr",
+    justifyItems: "left",
     alignItems: "center",
     color: "#9a9a9a",
-    fontSize: 14
+    fontSize: 14,
+    paddingTop: 8
   }),
 
   status: css({
-    position: "absolute",
-    right: 10,
-    top: 10,
     fontSize: "1.4em"
   })
 };
